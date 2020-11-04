@@ -7,7 +7,7 @@ This is an implementation of a sink connector from [Apache Kafka] to [Google Big
 of [Apache Kafka Connect]. For a comprehensive list of configuration options, see the [Connector Configuration Wiki].
 
 ## History
-
+sasa
 This connector was [originally developed by WePay](https://github.com/wepay/kafka-connect-bigquery).
 In late 2020 the project moved to [Confluent](https://github.com/confluentinc/kafka-connect-bigquery),
 with both companies taking on maintenance duties. All new activity such as filing issues and opening
