@@ -263,10 +263,10 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
 
   private Float convertFloat(Float kafkaConnectFloat) {
     if (shouldConvertSpecialDouble) {
-      if (kafkaConnectFloat.equals(Double.POSITIVE_INFINITY)) {
+      if (kafkaConnectFloat.equals(Float.POSITIVE_INFINITY)) {
         return Float.MAX_VALUE;
-      } else if (kafkaConnectFloat.equals(Double.NEGATIVE_INFINITY)
-          || Double.isNaN(kafkaConnectFloat)) {
+      } else if (kafkaConnectFloat.equals(Float.NEGATIVE_INFINITY)
+          || Float.isNaN(kafkaConnectFloat)) {
         return Float.MIN_VALUE;
       }
     }
