@@ -155,7 +155,7 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       case BOOLEAN:
         return (Boolean) kafkaConnectObject;
       case FLOAT32:
-        return (Float) kafkaConnectObject;
+        return convertFloat((Float)kafkaConnectObject);
       case FLOAT64:
         return convertDouble((Double)kafkaConnectObject);
       case INT8:
@@ -259,6 +259,18 @@ public class BigQueryRecordConverter implements RecordConverter<Map<String, Obje
       }
     }
     return kafkaConnectDouble;
+  }
+
+  private Float convertFloat(Float kafkaConnectFloat) {
+    if (shouldConvertSpecialDouble) {
+      if (kafkaConnectFloat.equals(Double.POSITIVE_INFINITY)) {
+        return Float.MAX_VALUE;
+      } else if (kafkaConnectFloat.equals(Double.NEGATIVE_INFINITY)
+          || Double.isNaN(kafkaConnectFloat)) {
+        return Float.MIN_VALUE;
+      }
+    }
+    return kafkaConnectFloat;
   }
 
   private String convertBytes(Object kafkaConnectObject) {
