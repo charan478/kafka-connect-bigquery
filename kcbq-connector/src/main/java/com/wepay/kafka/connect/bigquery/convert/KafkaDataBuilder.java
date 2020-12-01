@@ -25,17 +25,17 @@ public class KafkaDataBuilder {
      * @return Field of Kafka Data, with definitions of kafka topic, partition, offset, and insertTime.
      */
     public static Field buildKafkaDataField(String kafkaDataFieldName) {
-        Field topicField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
-        Field partitionField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
-        Field offsetField = com.google.cloud.bigquery.Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
-        Field.Builder insertTimeBuilder = com.google.cloud.bigquery.Field.newBuilder(
+        Field topicField = Field.of(KAFKA_DATA_TOPIC_FIELD_NAME, LegacySQLTypeName.STRING);
+        Field partitionField = Field.of(KAFKA_DATA_PARTITION_FIELD_NAME, LegacySQLTypeName.INTEGER);
+        Field offsetField = Field.of(KAFKA_DATA_OFFSET_FIELD_NAME, LegacySQLTypeName.INTEGER);
+        Field.Builder insertTimeBuilder = Field.newBuilder(
                 KAFKA_DATA_INSERT_TIME_FIELD_NAME, LegacySQLTypeName.TIMESTAMP)
-                .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE);
+                .setMode(Field.Mode.NULLABLE);
         Field insertTimeField = insertTimeBuilder.build();
 
         return Field.newBuilder(kafkaDataFieldName, LegacySQLTypeName.RECORD,
                 topicField, partitionField, offsetField, insertTimeField)
-                .setMode(com.google.cloud.bigquery.Field.Mode.NULLABLE).build();
+                .setMode(Field.Mode.NULLABLE).build();
     }
 
     /**

@@ -71,7 +71,7 @@ public class TableWriter implements Runnable {
     int currentBatchSize = rows.size();
     int successCount = 0;
     int failureCount = 0;
-
+    long startTime = System.nanoTime();
     try {
       while (currentIndex < rows.size()) {
         List<RowToInsert> currentBatch =
@@ -101,6 +101,14 @@ public class TableWriter implements Runnable {
     } else {
       logger.debug(logMessage, rows.size(), successCount, failureCount);
     }
+
+    long endTime = System.nanoTime();
+
+
+    logger.info("Thread {} successfully wrote {} messages into bq, consuming {} millisecs"
+              , Thread.currentThread().getName()
+              , rows.size()
+              , (endTime - startTime) / 1000000);
 
   }
 
@@ -185,6 +193,15 @@ public class TableWriter implements Runnable {
      */
     public TableWriter build() {
       return new TableWriter(writer, table, rows, topic);
+    }
+
+    /**
+     * Retrive the size of current row
+     * @return the number of lines in the row
+     */
+    @Override
+    public int getRowSize() {
+      return rows.size();
     }
   }
 }

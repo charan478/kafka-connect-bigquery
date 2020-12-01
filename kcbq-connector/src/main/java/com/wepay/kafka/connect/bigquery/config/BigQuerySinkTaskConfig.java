@@ -127,6 +127,30 @@ public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
   private static final String BIGQUERY_CLUSTERING_FIELD_NAMES_DOC =
       "List of fields on which data should be clustered by in BigQuery, separated by commas";
 
+  public static final String BIGQUERY_INSERT_ID_ENABLE_CONFIG = "bigqueryInsertIdEnable";
+  private static final ConfigDef.Type BIGQUERY_INSERT_ID_ENABLE_TYPE = ConfigDef.Type.BOOLEAN;
+  private static final Boolean BIGQUERY_INSERT_ID_ENABLE_DEFAULT = false;
+  private static final ConfigDef.Importance BIGQUERY_INSERT_ID_ENABLE_DEFAULT_IMPORTANCE =
+          ConfigDef.Importance.MEDIUM;
+  private static final String BIGQUERY_INSERT_ID_ENABLE_DOC =
+          "Whether or Not enable the insertId column option when inserting data into the bigquery table."
+                  + " If this config is enabled, bigquery is able to remove duplicates data with same"
+                  + " insertId in 1 second; Otherwise, no duplicates removal applied."
+                  + " Please note that the quota limit if this config is enabled:"
+                  + " 1. Within insertId column, 100K rows are allowed to populate into the table per second"
+                  + " and 500K rows per project in US/EU region. For other regions, only 100K rows per project"
+                  + " 2. Without insertId column, 1GB data is allowed per second at project level"
+                  + " Detail: https://cloud.google.com/bigquery/quotas#streaming_inserts";
+
+  public static final String BIGQUERY_RECORDS_PER_PUSH_CONFIG = "recordsPerPush";
+  private static final ConfigDef.Type BIGQUERY_RECORDS_PER_PUSH_TYPE = ConfigDef.Type.INT;
+  private static final Integer BIGQUERY_RECORDS_PER_PUSH_DEFAULT = 500;
+  private static final ConfigDef.Importance BIGQUERY_RECORDS_PER_PUSH_TYPE_DEFAULT_IMPORTANCE =
+          ConfigDef.Importance.MEDIUM;
+  private static final String BIGQUERY_RECORDS_PER_PUSH_TYPE_DOC =
+          "The maximum number of records are pushed into bigquery table every time."
+                  + " the minimum is 100 records and the maximum is 5000 records";
+
   static {
     config = BigQuerySinkConfig.getConfig()
         .define(
@@ -187,6 +211,18 @@ public class BigQuerySinkTaskConfig extends BigQuerySinkConfig {
             BIGQUERY_CLUSTERING_FIELD_NAMES_DEFAULT,
             BIGQUERY_CLUSTERING_FIELD_NAMES_IMPORTANCE,
             BIGQUERY_CLUSTERING_FIELD_NAMES_DOC
+        ).define(
+            BIGQUERY_INSERT_ID_ENABLE_CONFIG,
+            BIGQUERY_INSERT_ID_ENABLE_TYPE,
+            BIGQUERY_INSERT_ID_ENABLE_DEFAULT,
+            BIGQUERY_INSERT_ID_ENABLE_DEFAULT_IMPORTANCE,
+            BIGQUERY_INSERT_ID_ENABLE_DOC
+        ).define(
+            BIGQUERY_RECORDS_PER_PUSH_CONFIG,
+            BIGQUERY_RECORDS_PER_PUSH_TYPE,
+            BIGQUERY_RECORDS_PER_PUSH_DEFAULT,
+            BIGQUERY_RECORDS_PER_PUSH_TYPE_DEFAULT_IMPORTANCE,
+            BIGQUERY_RECORDS_PER_PUSH_TYPE_DOC
         );
   }
 

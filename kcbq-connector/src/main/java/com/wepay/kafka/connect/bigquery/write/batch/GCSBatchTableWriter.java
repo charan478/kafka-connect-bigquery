@@ -142,5 +142,14 @@ public class GCSBatchTableWriter implements Runnable {
     public GCSBatchTableWriter build() {
       return new GCSBatchTableWriter(rows, writer, tableId, bucketName, blobName, topic);
     }
+
+    /**
+     * Retrive the size of current row
+     * @return the number of lines in the row
+     */
+    @Override
+    public int getRowSize() {
+      return rows.size();
+    }
   }
 }

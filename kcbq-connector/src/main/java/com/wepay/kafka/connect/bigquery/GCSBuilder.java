@@ -20,19 +20,18 @@ package com.wepay.kafka.connect.bigquery;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.storage.Storage;
 import com.google.cloud.storage.StorageOptions;
-
+import com.google.common.base.Strings;
 import com.wepay.kafka.connect.bigquery.exception.GCSConnectException;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Convenience class for creating a {@link com.google.cloud.storage.Storage} instance
+ * Convenience class for creating a {@link Storage} instance
  */
 public class GCSBuilder {
     private static final Logger logger = LoggerFactory.getLogger(GCSBuilder.class);
@@ -69,7 +68,7 @@ public class GCSBuilder {
      * @return The resulting Storage object.
      */
     private Storage connect(String projectName, String key) {
-        if (key == null) {
+        if (Strings.isNullOrEmpty(key)) {
             return connect(projectName);
         }
         try {

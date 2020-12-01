@@ -20,20 +20,18 @@ package com.wepay.kafka.connect.bigquery;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.cloud.bigquery.BigQuery;
 import com.google.cloud.bigquery.BigQueryOptions;
-
+import com.google.common.base.Strings;
 import com.wepay.kafka.connect.bigquery.exception.BigQueryConnectException;
-
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
+import java.io.ByteArrayInputStream;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
- * Convenience class for creating a default {@link com.google.cloud.bigquery.BigQuery} instance,
+ * Convenience class for creating a default {@link BigQuery} instance,
  * with or without login credentials.
  */
 public class BigQueryHelper {
@@ -51,7 +49,7 @@ public class BigQueryHelper {
    * @return The resulting BigQuery object.
    */
   public BigQuery connect(String projectName, String key) {
-    if (key == null) {
+    if (Strings.isNullOrEmpty(key)) {
       return connect(projectName);
     }
     logger.debug("Attempting to open file {} for service account json key", key);

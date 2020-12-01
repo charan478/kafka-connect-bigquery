@@ -36,4 +36,10 @@ public interface TableWriterBuilder {
    * @return a TableWriter containing the given writer, table, topic, and all added rows.
    */
   Runnable build();
+
+  /**
+   * Retrive the size of current row
+   * @return
+   */
+  int getRowSize();
 }

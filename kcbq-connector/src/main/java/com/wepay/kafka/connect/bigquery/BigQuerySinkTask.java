@@ -45,6 +45,19 @@ import com.wepay.kafka.connect.bigquery.write.row.AdaptiveBigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.row.BigQueryWriter;
 import com.wepay.kafka.connect.bigquery.write.row.GCSToBQWriter;
 import com.wepay.kafka.connect.bigquery.write.row.SimpleBigQueryWriter;
+import java.text.DecimalFormat;
+import java.time.Instant;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
+import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import org.apache.kafka.clients.consumer.OffsetAndMetadata;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.config.ConfigException;
@@ -54,19 +67,6 @@ import org.apache.kafka.connect.sink.SinkRecord;
 import org.apache.kafka.connect.sink.SinkTask;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import java.time.Instant;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.Optional;
 
 /**
  * A {@link SinkTask} used to translate Kafka Connect {@link SinkRecord SinkRecords} into BigQuery
@@ -96,6 +96,10 @@ public class BigQuerySinkTask extends SinkTask {
   private final UUID uuid = UUID.randomUUID();
   private ScheduledExecutorService gcsLoadExecutor;
 
+  private Integer accumulator;
+  private Integer total;
+//  private Map<PartitionedTableId, TableWriterBuilder> tableWriterBuilders;
+
   /**
    * Create a new BigquerySinkTask.
    */
@@ -104,6 +108,9 @@ public class BigQuerySinkTask extends SinkTask {
     schemaRetriever = null;
     testGcs = null;
     testSchemaManager = null;
+    accumulator = 0;
+    total = 0;
+//    tableWriterBuilders = new HashMap<>();
   }
 
   /**
@@ -120,17 +127,24 @@ public class BigQuerySinkTask extends SinkTask {
     this.schemaRetriever = schemaRetriever;
     this.testGcs = testGcs;
     this.testSchemaManager = testSchemaManager;
+    accumulator = 0;
+    total = 0;
+//    tableWriterBuilders = new HashMap<>();
   }
 
   @Override
   public void flush(Map<TopicPartition, OffsetAndMetadata> offsets) {
+
+    logger.info("Start to commit offset back to Kafka topic");
     try {
       executor.awaitCurrentTasks();
     } catch (InterruptedException err) {
       throw new ConnectException("Interrupted while waiting for write tasks to complete.", err);
     }
 
+    Runtime.getRuntime().gc();
     topicPartitionManager.resumeAll();
+
   }
 
   private PartitionedTableId getRecordTable(SinkRecord record) {
@@ -173,7 +187,13 @@ public class BigQuerySinkTask extends SinkTask {
     if (config.getBoolean(config.SANITIZE_FIELD_NAME_CONFIG)) {
       convertedRecord = FieldNameSanitizer.replaceInvalidKeys(convertedRecord);
     }
-    return RowToInsert.of(getRowId(record), convertedRecord);
+
+    if (config.getBoolean(config.BIGQUERY_INSERT_ID_ENABLE_CONFIG)) {
+      return RowToInsert.of(getRowId(record), convertedRecord);
+    }
+
+    return RowToInsert.of(convertedRecord);
+
   }
 
   private String getRowId(SinkRecord record) {
@@ -185,62 +205,96 @@ public class BigQuerySinkTask extends SinkTask {
 
   @Override
   public void put(Collection<SinkRecord> records) {
-    logger.info("Putting {} records in the sink.", records.size());
-
+//    logger.info("Putting {} records in the sink.", records.size());
     // create tableWriters
     Map<PartitionedTableId, TableWriterBuilder> tableWriterBuilders = new HashMap<>();
 
     for (SinkRecord record : records) {
-      if (record.value() != null) {
-        PartitionedTableId table = getRecordTable(record);
-        if (schemaRetriever != null) {
-          schemaRetriever.setLastSeenSchema(table.getBaseTableId(),
-                                            record.topic(),
-                                            record.valueSchema());
-        }
+      if (null == record.value()) {
+        logger.warn("Empty record, continue to the next one");
+        continue;
+      }
 
-        if (!tableWriterBuilders.containsKey(table)) {
-          TableWriterBuilder tableWriterBuilder;
-          if (config.getList(config.ENABLE_BATCH_CONFIG).contains(record.topic())) {
-            String topic = record.topic();
-            String gcsBlobName = topic + "_" + uuid + "_" + Instant.now().toEpochMilli();
-            String gcsFolderName = config.getString(config.GCS_FOLDER_NAME_CONFIG);
-            if (gcsFolderName != null && !"".equals(gcsFolderName)) {
-              gcsBlobName = gcsFolderName + "/" + gcsBlobName;
-            }
-            tableWriterBuilder = new GCSBatchTableWriter.Builder(
-                gcsToBQWriter,
-                table.getBaseTableId(),
-                config.getString(config.GCS_BUCKET_NAME_CONFIG),
-                gcsBlobName,
-                topic,
-                recordConverter);
-          } else {
-            tableWriterBuilder =
-                new TableWriter.Builder(bigQueryWriter, table, record.topic(), recordConverter);
+      PartitionedTableId table = getRecordTable(record);
+      if (schemaRetriever != null) {
+        schemaRetriever.setLastSeenSchema(table.getBaseTableId(),
+                record.topic(),
+                record.valueSchema());
+      }
+
+      if (!tableWriterBuilders.containsKey(table)) {
+        TableWriterBuilder tableWriterBuilder;
+        if (config.getList(config.ENABLE_BATCH_CONFIG).contains(record.topic())) {  // this is for batch insertion
+          String topic = record.topic();
+          String gcsBlobName = topic + "_" + uuid + "_" + Instant.now().toEpochMilli();
+          String gcsFolderName = config.getString(config.GCS_FOLDER_NAME_CONFIG);
+          if (gcsFolderName != null && !"".equals(gcsFolderName)) {
+            gcsBlobName = gcsFolderName + "/" + gcsBlobName;
           }
-          tableWriterBuilders.put(table, tableWriterBuilder);
+          tableWriterBuilder = new GCSBatchTableWriter.Builder(
+                  gcsToBQWriter,
+                  table.getBaseTableId(),
+                  config.getString(config.GCS_BUCKET_NAME_CONFIG),
+                  gcsBlobName,
+                  topic,
+                  recordConverter);
+        } else {
+          tableWriterBuilder =
+                  new TableWriter.Builder(bigQueryWriter, table, record.topic(), recordConverter);
         }
+        tableWriterBuilders.put(table, tableWriterBuilder);
+      }
+
+
+      if (config.getList(config.ENABLE_BATCH_CONFIG).contains(record.topic())) {  // this is for the batch
         tableWriterBuilders.get(table).addRow(getRecordRow(record));
+      } else {  // this is for the streaming
+        // try to delivery package less than the maximum number of records
+        int maximumRecords = config.getInt(config.BIGQUERY_RECORDS_PER_PUSH_CONFIG);
+        if (tableWriterBuilders.get(table).getRowSize() >= maximumRecords) {
+          executor.execute(tableWriterBuilders.get(table).build());
+          tableWriterBuilders.remove(table);
+        } else {
+          tableWriterBuilders.get(table).addRow(getRecordRow(record));
+        }
+      }
+
+    }
+
+    tableWriterBuilders.values().forEach(builder -> executor.execute(builder.build()));
+
+    long totalMemory = Runtime.getRuntime().totalMemory() / (1024L * 1024L);
+    long usedMemory = (Runtime.getRuntime().totalMemory() - Runtime.getRuntime().freeMemory()) / (1024L * 1024L);
+    float percent = ((float)usedMemory * 100 / totalMemory);
+    DecimalFormat df = new DecimalFormat("##.##");
+//    logger.info("Current JVM total memory is {}M, used {}M, accounting for {} percentage",
+//            totalMemory, usedMemory, df.format(percent));
+
+    if (topicPartitionManager.isPaused() && (percent - 50f <= 0)) {
+      topicPartitionManager.resumeAll();
+    } else {
+      if (percent - 70f > 0) {
+        logger.info("The total percentage usage reached {}, pause the running", df.format(percent));
+        topicPartitionManager.pauseAll();
+        Runtime.getRuntime().gc();
+      } else {
+        // do nothing, application is health, keep it running
       }
     }
 
-    // add tableWriters to the executor work queue
-    for (TableWriterBuilder builder : tableWriterBuilders.values()) {
-      executor.execute(builder.build());
-    }
 
     // check if we should pause topics
-    long queueSoftLimit = config.getLong(BigQuerySinkTaskConfig.QUEUE_SIZE_CONFIG);
-    if (queueSoftLimit != -1) {
-      int currentQueueSize = executor.getQueue().size();
-      if (currentQueueSize > queueSoftLimit) {
-        topicPartitionManager.pauseAll();
-      } else if (currentQueueSize <= queueSoftLimit / 2) {
-        // resume only if there is a reasonable chance we won't immediately have to pause again.
-        topicPartitionManager.resumeAll();
-      }
-    }
+//    long queueSoftLimit = config.getLong(BigQuerySinkTaskConfig.QUEUE_SIZE_CONFIG);
+//    if (queueSoftLimit != -1) {
+//      int currentQueueSize = executor.getQueue().size();
+//      if (currentQueueSize > queueSoftLimit) {
+//        topicPartitionManager.pauseAll();
+//      } else if (currentQueueSize <= queueSoftLimit / 2) {
+//        // resume only if there is a reasonable chance we won't immediately have to pause again.
+//        topicPartitionManager.resumeAll();
+//      }
+//    }
+
   }
 
   private RecordConverter<Map<String, Object>> getConverter() {
@@ -430,6 +484,10 @@ public class BigQuerySinkTask extends SinkTask {
       }
       Set<TopicPartition> assignment = context.assignment();
       context.resume(assignment.toArray(new TopicPartition[assignment.size()]));
+    }
+
+    public boolean isPaused() {
+      return this.isPaused;
     }
   }
 }
